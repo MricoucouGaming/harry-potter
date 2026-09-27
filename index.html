@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Aux confins de Poudlard</title>
+<style>
+:root{
+  --bg:#0c0d10; --panel:#15171c; --panel2:#1c1f26; --border:#33384a;
+  --red:#e05a4e; --orange:#e0954e; --yellow:#e0c94e; --yellowpale:#d9d39a;
+  --green:#5fbf6b; --green2:#7fd88a; --blue:#5aa9e0; --purple:#b087e0;
+  --pink:#e08fc0; --cyan:#5fd0d0; --gray:#9aa0ac; --darkgray:#5a5f6b;
+  --white:#eceff4; --brown:#a3703f; --brownlight:#c99a63;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--white);
+  font-family:'Courier New',ui-monospace,monospace;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
+body{display:flex;flex-direction:column;min-height:100%;}
+#statbar{background:var(--panel2);border-bottom:2px solid var(--border);
+  padding:8px 12px;display:flex;flex-wrap:wrap;gap:14px;font-size:13px;position:sticky;top:env(safe-area-inset-top,0px);z-index:5;}
+#statbar div{white-space:nowrap;}
+.lbl{color:var(--gray);}
+#title{text-align:center;padding:10px 0 4px;color:var(--purple);letter-spacing:2px;font-size:18px;border-bottom:1px dashed var(--border);}
+#main{flex:1;max-width:820px;margin:0 auto;width:100%;padding:14px 16px 30px;}
+#ascii{white-space:pre;text-align:center;color:var(--green);font-size:11px;line-height:1.1;margin-bottom:6px;}
+#log{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:14px 16px;margin-bottom:14px;min-height:60px;}
+#log p{margin:4px 0;line-height:1.5;}
+#choices{display:flex;flex-direction:column;gap:8px;}
+button.choice{background:var(--panel2);border:1px solid var(--border);color:var(--white);
+  padding:10px 14px;text-align:left;border-radius:5px;font-family:inherit;font-size:14px;cursor:pointer;}
+button.choice:hover{border-color:var(--orange);background:#22252d;}
+button.choice.danger{border-color:var(--red);}
+button.choice.good{border-color:var(--green);}
+.inputrow{display:flex;gap:8px;margin-top:6px;}
+.inputrow input{flex:1;background:#0a0b0d;border:1px solid var(--border);color:var(--white);padding:8px;border-radius:5px;font-family:inherit;}
+.inputrow button{background:var(--orange);border:none;color:#20130a;padding:8px 16px;border-radius:5px;font-weight:bold;cursor:pointer;}
+.red{color:var(--red);} .orange{color:var(--orange);} .yellow{color:var(--yellow);}
+.yellowpale{color:var(--yellowpale);} .green{color:var(--green);} .green2{color:var(--green2);}
+.blue{color:var(--blue);} .purple{color:var(--purple);} .pink{color:var(--pink);}
+.cyan{color:var(--cyan);} .gray{color:var(--gray);} .darkgray{color:var(--darkgray);}
+.white{color:var(--white);} .brown{color:var(--brown);} .brownlight{color:var(--brownlight);}
+table.grid{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0;}
+table.grid td{border:1px solid var(--border);padding:5px;text-align:center;color:var(--cyan);}
+.footer{text-align:center;color:var(--darkgray);font-size:11px;padding:10px;}
+::selection{background:var(--orange);color:#000;}
+</style>
+</head>
+<body>
+<div id="statbar"></div>
+<div id="title">🪄 AUX CONFINS DE POUDLARD 🪄</div>
+<div id="main">
+  <div id="ascii"></div>
+  <div id="log"></div>
+  <div id="choices"></div>
+</div>
+<div class="footer">Version Harry Potter (fan-made, non-officielle) — même moteur de jeu, univers réinventé.</div>
+
+<script>
+/* ============================== DONNÉES ============================== */
+
+// Maisons de Poudlard (remplacent les races)
+const RACES = {
+  "gryffondor": {label:"Gryffondor", health:100, endu:60, def:5, atk:10},
+  "g": {label:"Gryffondor", health:100, endu:60, def:5, atk:10},
+  "serdaigle": {label:"Serdaigle", health:1, endu:65, def:3, atk:10}, // clin d'oeil : brillants à l'écrit, catastrophiques au combat
+  "sd": {label:"Serdaigle", health:1, endu:65, def:3, atk:10},
+  "serpentard": {label:"Serpentard", health:100, endu:50, def:6, atk:14},
+  "sp": {label:"Serpentard", health:100, endu:50, def:6, atk:14},
+  "poufsouffle": {label:"Poufsouffle", health:50, endu:25, def:1, atk:5},
+  "p": {label:"Poufsouffle", health:50, endu:25, def:1, atk:5},
+};
+// Classes
+const CLASSES = {
+  "mage": {label:"Mage", health:0, endu:25, def:0, deg:0, arme:"Baguette d'Entraînement"},
+  "m": {label:"Mage", health:0, endu:25, def:0, deg:0, arme:"Baguette d'Entraînement"},
+  "cracmol": {label:"Cracmol", health:10, endu:5, def:3, deg:5, arme:"Bâton Noueux"},
+  "c": {label:"Cracmol", health:10, endu:5, def:3, deg:5, arme:"Bâton Noueux"},
+  "moldu": {label:"Moldu", health:20, endu:5, def:0, deg:2, arme:"Lance-Pierre"},
+  "mo": {label:"Moldu", health:20, endu:5, def:0, deg:2, arme:"Lance-Pierre"},
+  "magenoir": {label:"Mage Noir", health:0, endu:20, def:0, deg:8, arme:"Baguette Fêlée"},
+  "mn": {label:"Mage Noir", health:0, endu:20, def:0, deg:8, arme:"Baguette Fêlée"},
+};
+const ATTAQUES_CLASSE = {
+  "Mage": ["Incendio","Stupéfix","Wingardium Leviosa"],
+  "Cracmol": ["Coup de Bâton Noueux","Jet de Pierres","Coup de Poing"],
+  "Moldu": ["Tir de Fronde","Jet de Gravillons","Coup de Pied"],
+  "Mage Noir": ["Avada Kedavra","Endoloris","Maléfice Cuisant"],
+  "Aventurier": ["Coup de Poing","Coup de Poing","Coup de Pied"],
+};
+const DGTARMES = {
+  "Baguette d'Entraînement":1,"Bâton Noueux":1,"Lance-Pierre":1,"Baguette Fêlée":1,
+  "Baguette en Bois de Saule":5,"Bâton Ferré":5,"Fronde Renforcée":5,"Baguette en Ébène":5,
+  "Baguette en If et Plume de Phénix":10,"Bâton Ferré Renforcé":10,"Fronde Enchantée":10,"Baguette en If Noir":10,
+};
+const PVARMURE = {
+  "Cape en Peau de Dragon":50,"Cape Renforcée d'Acier Gobelin":100,
+  "Cape Renforcée d'Acier Gobelin Enchantée":200,"Cape d'Invisibilité Tissée":350
+};
+
+const PRIX_ACHAT_SHOP = {"Bois de Baguette":2,"Cuir de Dragon":3,"Fil d'Acromantula":3,"Plume de Phénix":5,"Argent Gobelin":6,"Poussière d'Étoile":4,"Écaille de Dragon":9};
+const PRIX_VENTE_SHOP = {"Bois de Baguette":1,"Cuir de Dragon":2,"Fil d'Acromantula":2,"Plume de Phénix":4,"Argent Gobelin":5,"Poussière d'Étoile":3,"Écaille de Dragon":8};
+const PRIX_POTIONS = {"Essence de Dictame":8,"Potion Explosive":12,"Philtre de Vigueur":9};
+
+const RECETTES = [
+  {nom:"Cape en Peau de Dragon",cat:"Armure",ing:[["Cuir de Dragon",15],["Fil d'Acromantula",5]]},
+  {nom:"Cape Renforcée d'Acier Gobelin",cat:"Armure",ing:[["Argent Gobelin",20]]},
+  {nom:"Cape Renforcée d'Acier Gobelin Enchantée",cat:"Armure",ing:[["Argent Gobelin",20],["Poussière d'Étoile",5]]},
+  {nom:"Cape d'Invisibilité Tissée",cat:"Armure",ing:[["Argent Gobelin",30],["Poussière d'Étoile",5],["Écaille de Dragon",5]]},
+  {nom:"Bâton Ferré",cat:"Arme",ing:[["Argent Gobelin",6],["Bois de Baguette",2]]},
+  {nom:"Bâton Ferré Renforcé",cat:"Arme",ing:[["Argent Gobelin",8],["Bois de Baguette",2],["Écaille de Dragon",1]]},
+  {nom:"Baguette en Bois de Saule",cat:"Arme",ing:[["Bois de Baguette",2],["Poussière d'Étoile",1]]},
+  {nom:"Baguette en If et Plume de Phénix",cat:"Arme",ing:[["Bois de Baguette",6],["Plume de Phénix",4],["Poussière d'Étoile",3]]},
+  {nom:"Fronde Renforcée",cat:"Arme",ing:[["Bois de Baguette",6],["Fil d'Acromantula",4]]},
+  {nom:"Fronde Enchantée",cat:"Arme",ing:[["Plume de Phénix",10],["Fil d'Acromantula",5]]},
+  {nom:"Baguette en Ébène",cat:"Arme",ing:[["Bois de Baguette",3],["Poussière d'Étoile",2]]},
+  {nom:"Baguette en If Noir",cat:"Arme",ing:[["Bois de Baguette",6],["Écaille de Dragon",3],["Poussière d'Étoile",2]]},
+];
+
+// Table des créatures : 3 paliers de niveau (<=10 / <=25 / >25), formules conservées à l'identique.
+const MOBS = {
+  "Ours":      {label:"Troll des Montagnes", atkname:"Coup de Massue", loot:"Cuir de Dragon",
+    t:[[55,21,12,4,30,24],[240,157,45,25,250,26],[2600,8296,420,643,640,14]]},
+  "Sherpa":    {label:"Elfe de Maison Sauvage", atkname:"Sort de Défense Elfique", loot:"Bois de Baguette",
+    t:[[30,10,6,2,15,12],[130,85,25,14,120,22],[1400,4384,230,351,450,10]]},
+  "Canari":    {label:"Doxy", atkname:"Piqûre Venimeuse", loot:"Fil d'Acromantula",
+    t:[[30,10,6,2,15,12],[130,85,25,14,120,22],[1400,4384,230,351,450,10]]},
+  "Gobelin":   {label:"Jeune Basilic", atkname:"Morsure Venimeuse", loot:"Argent Gobelin",
+    t:[[55,21,12,4,30,24],[240,157,45,25,250,26],[2600,8296,420,643,640,14]]},
+  "Poissonrouge": {label:"Strangulot", atkname:"Étranglement Aquatique", loot:"Cuir de Dragon",
+    t:[[30,10,6,2,15,12],[130,85,25,14,120,22],[1400,4384,230,351,450,10]]},
+  "Sirène":    {label:"Sirène des Abysses", atkname:"Chant Envoûtant", loot:"Fil d'Acromantula",
+    t:[[55,21,12,4,30,24],[240,157,45,25,250,26],[2600,8296,420,643,640,14]]},
+  "Loup":      {label:"Loup-Garou", atkname:"Hurlement Lunaire", loot:"Bois de Baguette",
+    t:[[30,10,6,2,15,12],[130,85,25,14,120,22],[1400,4384,230,351,450,10]]},
+  "naindejardin": {label:"Lutin de Cornouailles", atkname:"Farce Explosive", loot:"Plume de Phénix",
+    t:[[55,21,12,4,30,24],[240,157,45,25,250,26],[2600,8296,420,643,640,14]]},
+  "steve":     {label:"Cognard Ensorcelé", atkname:"Frappe de Cognard", loot:"Bois de Baguette",
+    t:[[55,21,12,4,30,24],[240,157,45,25,250,26],[2600,8296,420,643,640,14]]},
+  "taupe":     {label:"Botruc Agressif", atkname:"Griffure Noueuse", loot:"Plume de Phénix",
+    t:[[30,10,6,2,15,12],[130,85,25,14,120,22],[1400,4384,230,351,450,10]]},
+  "chatnoir":  {label:"Kneazle Enragé", atkname:"Coup de Griffe", loot:"Cuir de Dragon",
+    t:[[30,10,6,2,15,12],[130,85,25,14,120,22],[1400,4384,230,351,450,10]]},
+  "gargouille":{label:"Gargouille de Poudlard", atkname:"Cracher de Pierre", loot:"Plume de Phénix",
+    t:[[55,21,12,4,30,24],[240,157,45,25,250,26],[2600,8296,420,643,640,14]]},
+  "chevalier": {label:"Armure Ensorcelée", atkname:"Coup d'Épée Fantôme", loot:"Argent Gobelin",
+    t:[[30,10,6,2,15,12],[130,85,15,14,120,22],[1400,4384,230,351,450,10]]},
+  "liche":     {label:"Détraqueur", atkname:"Baiser du Détraqueur", loot:"Fil d'Acromantula", liche:true,
+    t:[[60,21,4,2,30,24],[170,85,4,2,250,26],[2000,8296,200,643,640,14]]},
+};
+// Boss fixes (valeurs par palier, pas de formule)
+const BOSS = {
+  "Valenkor": {label:"Voldemort", atkname:"Avada Kedavra", loot:"Écaille de Dragon",
+    t:[[450,80,500],[5000,780,5000],[420000,32000,65000]]},
+  "tableau": {label:"Le Tableau de Salazar Serpentard", atkname:"Sortilège Ancien", loot:"Poussière d'Étoile",
+    t:[[400,60,5000],[4500,700,5000],[350000,28000,5000]]},
+};
+
+function tierIndex(level){ return level<=10?0:(level<=25?1:2); }
+
+function getMob(key, level){
+  if(BOSS[key]){
+    const b=BOSS[key], i=tierIndex(level);
+    return {name:b.label||key, atkname:b.atkname, loot:b.loot, health:b.t[i][0], atk:b.t[i][1], exp:b.t[i][2]};
+  }
+  const m=MOBS[key], i=tierIndex(level);
+  const [hB,hP,aB,aP,eB,eP]=m.t[i];
+  let k;
+  if(i===0) k=level-1; else if(i===1) k=(m.liche?level-1:level-10); else k=level-25;
+  return {name:m.label||key, atkname:m.atkname, loot:m.loot,
+    health:hB+hP*k, atk:aB+aP*k, exp:eB+eP*k};
+}
+
+// Graphe des lieux : créatures disponibles + navigation (structure inchangée)
+const LIEUX = {
+  foret:   {nom:"Forêt Interdite", art:"^^^ ^^^ ^^^\n ^^ ^^^^ ^^\n  || ||  ||", mobs:[["Loup","Affronter un Loup-Garou"],["naindejardin","Affronter un Lutin de Cornouailles"]],
+            nav:[["village","Retourner à Pré-au-Lard"],["lac","Aller au Lac Noir"]]},
+  mine:    {nom:"Chambre des Secrets", art:"▓▓▓▓▓▓▓▓▓▓\n▓  S ~~ S ▓\n▓▓▓▓▓▓▓▓▓▓", mobs:[["Canari","Affronter un Doxy"],["Gobelin","Affronter un Jeune Basilic"]],
+            labyrinth:true, nav:[["plaine","Aller au Terrain de Quidditch"],["village","Retourner à Pré-au-Lard"]]},
+  plaine:  {nom:"Terrain de Quidditch", art:"   O        O\n  /|        |\\\n=============", mobs:[["steve","Affronter un Cognard Ensorcelé"],["taupe","Affronter un Botruc Agressif"]],
+            nav:[["montagne","Aller au Col des Géants"],["mine","Aller à la Chambre des Secrets"]]},
+  montagne:{nom:"Col des Géants", art:" /\\  /\\\n/  \\/  \\\n ^^  ^^  ^^", mobs:[["Ours","Affronter un Troll des Montagnes"],["Sherpa","Affronter un Elfe de Maison Sauvage"]],
+            nav:[["plaine","Aller au Terrain de Quidditch"],["chateau","Rentrer au Château de Poudlard"]]},
+  lac:     {nom:"Lac Noir", art:"~~~~~~~~~~\n~  /\\  ~~~\n~ /__\\ ~~~", mobs:[["Poissonrouge","Affronter un Strangulot"],["Sirène","Affronter une Sirène des Abysses"]],
+            secretBoss:"Valenkor", nav:[["marais","Aller au Marais aux Brumes"],["foret","Aller à la Forêt Interdite"]]},
+  chateau: {nom:"Château de Poudlard", art:" /\\/\\  _\n|[]| /_\\\n|__|_|_|", mobs:[["gargouille","Affronter une Gargouille de Poudlard"],["chevalier","Affronter une Armure Ensorcelée"]],
+            boss:"tableau", nav:[["montagne","Aller au Col des Géants"],["marais","Aller au Marais aux Brumes"]]},
+  marais:  {nom:"Marais aux Brumes", art:"~ 🌿 ~ 🌿\n~ _/\\_ ~~\n~ ( ) ~~~", mobs:[["chatnoir","Affronter un Kneazle Enragé"],["liche","Affronter un Détraqueur"]],
+            witch:true, nav:[["lac","Aller au Lac Noir"],["chateau","Aller au Château"]]},
+};
+
+/* ============================== ÉTAT ============================== */
+
+let P = null; // joueur
+let INV = null; // inventaire {slots:[30], equip:{arme,armure}}
+let currentLieu = "village";
+let fightState = null;
+
+function newInventaire(){ return {slots:new Array(30).fill(null), equip:{arme:null,armure:null}}; }
+
+function attaqueTable(){
+  const bonus = INV.equip.arme ? (DGTARMES[INV.equip.arme.nom]||0) : 0;
+  const a = P.atk + bonus;
+  return {
+    "Incendio":{deg:a*2,cout:25},
+    "Stupéfix":{deg:a,cout:8},
+    "Wingardium Leviosa":{deg:Math.floor(a*11/10),cout:5},
+    "Coup de Bâton Noueux":{deg:Math.floor(a*8/5),cout:18},
+    "Jet de Pierres":{deg:Math.floor(a*11/10),cout:10},
+    "Coup de Poing":{deg:a,cout:0},
+    "Tir de Fronde":{deg:Math.floor(a*3/2),cout:15},
+    "Jet de Gravillons":{deg:Math.floor(a*13/10),cout:12},
+    "Coup de Pied":{deg:Math.floor(a*11/10),cout:5},
+    "Avada Kedavra":{deg:a*2,cout:25},
+    "Endoloris":{deg:Math.floor(a*11/10),cout:10},
+    "Maléfice Cuisant":{deg:a,cout:0},
+  };
+}
+
+/* ============================== INVENTAIRE ============================== */
+
+function addItem(nom, type, qte){
+  if(type==="Arme"||type==="Armure"){
+    for(let i=0;i<30;i++) if(!INV.slots[i]){ INV.slots[i]={nom,type,qte:1}; return true; }
+    return false;
+  }
+  const maxStack=30;
+  for(let i=0;i<30 && qte>0;i++){
+    const s=INV.slots[i];
+    if(s && s.nom===nom && s.qte<maxStack){
+      const libre=maxStack-s.qte;
+      if(qte<=libre){ s.qte+=qte; qte=0; break; }
+      s.qte=maxStack; qte-=libre;
+    }
+  }
+  for(let i=0;i<30 && qte>0;i++){
+    if(!INV.slots[i]){ const a=Math.min(qte,maxStack); INV.slots[i]={nom,type,qte:a}; qte-=a; }
+  }
+  return qte<=0;
+}
+function countItem(nom){ return INV.slots.reduce((s,x)=>x&&x.nom===nom?s+x.qte:s,0); }
+function removeItem(nom, qte){
+  if(countItem(nom)<qte) return false;
+  let reste=qte;
+  for(let i=0;i<30 && reste>0;i++){
+    const s=INV.slots[i];
+    if(s && s.nom===nom){
+      if(s.qte<=reste){ reste-=s.qte; INV.slots[i]=null; } else { s.qte-=reste; reste=0; }
+    }
+  }
+  return true;
+}
+function equipSlot(i){
+  const it=INV.slots[i];
+  if(!it) return "Ce slot est vide.";
+  if(it.type!=="Arme" && it.type!=="Armure") return it.nom+" n'est pas un équipement.";
+  if(it.type==="Arme"){ const old=INV.equip.arme; INV.equip.arme=it; INV.slots[i]=old; return "Vous avez équipé l'arme : "+it.nom; }
+  const old=INV.equip.armure; INV.equip.armure=it; INV.slots[i]=old; return "Vous avez équipé la cape : "+it.nom;
+}
+
+/* ============================== NIVEAU ============================== */
+
+function expRequise(level){ return 10+80*(level-1); }
+function gainExp(exp){
+  P.exp+=exp;
+  let req=expRequise(P.level);
+  let ups=[];
+  while(P.exp>=req){
+    P.level++; P.exp-=req;
+    if(P.level<=10){ P.atk+=3; P.health+=15; } else if(P.level<=25){ P.atk+=7; P.health+=30; } else { P.atk+=30; P.health+=100; }
+    req=expRequise(P.level);
+    if(P.level<=10) P.title="Première Année"; else if(P.level<=20) P.title="Préfet"; else if(P.level<=30) P.title="Auror Junior";
+    else if(P.level<=40) P.title="Auror Chevronné"; else if(P.level<=50) P.title="Maître des Sortilèges"; else P.title="Archimage Légendaire";
+    ups.push(P.level);
+  }
+  return ups;
+}
+
+/* ============================== RENDU ============================== */
+
+const logEl=document.getElementById('log'), choicesEl=document.getElementById('choices'), asciiEl=document.getElementById('ascii'), statEl=document.getElementById('statbar');
+
+function esc(s){ return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+function clearLog(){ logEl.innerHTML=""; }
+function line(html, cls){ const p=document.createElement('p'); if(cls) p.className=cls; p.innerHTML=html; logEl.appendChild(p); }
+function setChoices(list){
+  choicesEl.innerHTML="";
+  list.forEach(([label,fn,cls])=>{
+    const b=document.createElement('button'); b.className="choice"+(cls?" "+cls:""); b.innerHTML=label;
+    b.onclick=fn; choicesEl.appendChild(b);
+  });
+}
+function setAscii(txt){ asciiEl.textContent=txt||""; }
+function inputRow(placeholder, onSubmit, btnLabel){
+  choicesEl.innerHTML="";
+  const wrap=document.createElement('div'); wrap.className="inputrow";
+  const inp=document.createElement('input'); inp.placeholder=placeholder;
+  const btn=document.createElement('button'); btn.textContent=btnLabel||"OK";
+  const go=()=>onSubmit(inp.value);
+  btn.onclick=go; inp.onkeydown=(e)=>{ if(e.key==="Enter") go(); };
+  wrap.appendChild(inp); wrap.appendChild(btn); choicesEl.appendChild(wrap);
+  setTimeout(()=>inp.focus(),0);
+}
+
+function renderStatbar(){
+  if(!P){ statEl.innerHTML=""; return; }
+  statEl.innerHTML = `
+    <div><span class="lbl">Nom</span> <b>${esc(P.name)}</b></div>
+    <div><span class="lbl">Maison/Classe</span> ${esc(P.race)} ${esc(P.class)}</div>
+    <div><span class="lbl">Niveau</span> ${P.level} <span class="gray">(${esc(P.title)})</span></div>
+    <div><span class="lbl">HP</span> ${P.health}</div>
+    <div><span class="lbl">Endurance</span> ${P.endurance}</div>
+    <div><span class="lbl">Attaque</span> ${P.atk}</div>
+    <div><span class="lbl">Gallions</span> <span class="yellow">${P.money} 🪙</span></div>
+    <div><span class="lbl">Exp</span> ${P.exp}/${expRequise(P.level)}</div>
+  `;
+}
+
+/* ============================== CRÉATION PERSO ============================== */
+
+function screenCreate(){
+  currentLieu="create";
+  clearLog(); setAscii("");
+  line('<span class="cyan">=== RÉPARTITION ET FORMATION ===</span>');
+  line('<span class="gray">Entrez votre nom, votre maison (Gryffondor, Serdaigle, Serpentard, Poufsouffle) et votre classe (Mage, Cracmol, Moldu, Mage Noir).</span>');
+  const state={nom:"", race:"", classe:""};
+  askNom();
+  function askNom(){
+    inputRow("Votre nom...", (v)=>{
+      state.nom=v.trim()||"Apprenti Sorcier";
+      line('<span class="pink">Entrez votre nom : </span>'+esc(state.nom));
+      askRace();
+    }, "Valider");
+  }
+  function askRace(){
+    inputRow("Gryffondor / Serdaigle / Serpentard / Poufsouffle...", (v)=>{
+      state.race=v.trim();
+      line('<span class="purple">Le Choixpeau vous envoie à : </span>'+esc(state.race));
+      askClasse();
+    }, "Valider");
+  }
+  function askClasse(){
+    inputRow("Mage / Cracmol / Moldu / Mage Noir...", (v)=>{
+      state.classe=v.trim();
+      line('<span class="red">Vous choisissez votre voie : </span>'+esc(state.classe));
+      finalize();
+    }, "Valider");
+  }
+  function finalize(){
+    const raceKey=state.race.toLowerCase().replace(/\s+/g,'');
+    const classKey=state.classe.toLowerCase().replace(/\s+/g,'');
+    const raceData = RACES[raceKey];
+    const classData = CLASSES[classKey];
+    if(!raceData) line('<span class="darkgray">Maison non reconnue, statistiques de base appliquées.</span>');
+    const healthRace = raceData?raceData.health:100, enduRace=raceData?raceData.endu:50, defRace=raceData?raceData.def:5, atk0=raceData?raceData.atk:10;
+    const raceLabel = raceData?raceData.label:state.race;
+    const healthClasse = classData?classData.health:0, enduClasse=classData?classData.endu:0, degClasse=classData?classData.deg:0;
+    const classeLabel = classData?classData.label:"Aventurier";
+
+    P = {
+      name: state.nom, race: raceLabel, class: classeLabel, level:1,
+      health: healthRace+healthClasse, endurance: enduRace+enduClasse, def: defRace+(classData?classData.def:0),
+      money:5, exp:0, atk: degClasse+atk0, title:"Première Année",
+    };
+    INV = newInventaire();
+    const armeDebut = classData?classData.arme:"Bâton d'Entraînement";
+    addItem(armeDebut,"Arme",1);
+    equipSlot(INV.slots.findIndex(s=>s && s.nom===armeDebut));
+
+    clearLog();
+    line('<span class="red">=== SORCIER PRÊT ===</span>');
+    line(`<span class="orange">Bienvenue, ${esc(P.name)} de ${esc(P.race)}, ${esc(P.class)} !</span>`);
+    line(`<span class="yellow">Santé : ${P.health} HP | Endurance : ${P.endurance} Pts | Gallions : ${P.money}</span>`);
+    line('<span class="green">Appuyez sur le bouton pour rejoindre le village de Pré-au-Lard.</span>');
+    renderStatbar();
+    setChoices([["Entrer à Pré-au-Lard", ()=>screenVillage(), "good"]]);
+  }
+}
+
+/* ============================== VILLAGE (PRÉ-AU-LARD) ============================== */
+
+function screenVillage(){
+  currentLieu="village";
+  clearLog();
+  setAscii("        /\\_/\\  _\n        |[]| /_\\\n        |_|_|___|\n  -- PRÉ-AU-LARD --");
+  line('<span class="red">--------------- Pré-au-Lard ---------------</span>');
+  line('<span class="gray">Le village sorcier. Choisissez une destination.</span>');
+  renderStatbar();
+  setChoices([
+    ["🛒 Entrer dans l'Échoppe", screenShop],
+    ["🔨 Entrer dans l'Atelier Enchanté", screenForge],
+    ["📚 Entrer dans la Librairie", screenBiblio],
+    ["🍺 Entrer aux Trois Balais", screenAuberge],
+    ["🎒 Ouvrir l'inventaire", ()=>screenInventaire(screenVillage)],
+    ["🌲 Aller à la Forêt Interdite", ()=>screenLieu("foret")],
+    ["🐍 Aller à la Chambre des Secrets", ()=>screenLieu("mine")],
+    ["🗺 Voir la carte", ()=>screenMap(screenVillage)],
+  ]);
+}
+
+// affiche la carte (schéma des lieux), puis revient exactement à l'écran d'où on vient
+function screenMap(returnFn){
+  clearLog(); setAscii("");
+  line('<span class="blue">' + esc(
+`+-----------+   +-------------+   +------------------+
+| CHAMBRE   |<->| PRÉ-AU-LARD |<->|  FORÊT INTERDITE |
+| DES       |   |  (Village)  |   |                  |
+| SECRETS   |   +-------------+   +------------------+
++-----------+                            ^
+     ^                                   v
+     v                            +------------------+
++-----------+                     |    LAC NOIR      |
+| TERRAIN   |                     +------------------+
+| DE        |                            ^
+| QUIDDITCH |                            v
++-----------+   +-------------+   +------------------+
+| COL DES   |<->| CHÂTEAU DE  |<->|  MARAIS AUX      |
+| GÉANTS    |   | POUDLARD    |   |  BRUMES          |
++-----------+   +-------------+   +------------------+`) + '</span>');
+  setChoices([["Retour", returnFn]]);
+}
+
+/* ============================== LIEUX D'EXPLORATION ============================== */
+
+function screenLieu(key){
+  currentLieu=key;
+  const L=LIEUX[key];
+  clearLog(); setAscii(L.art);
+  line(`<span class="red">--------------- ${esc(L.nom)} ---------------</span>`);
+  const choices=[];
+  L.mobs.forEach(([mobKey,label])=>{ choices.push(["⚔ "+label, ()=>startFight(mobKey, key, false)]); });
+  choices.push(["🎒 Ouvrir l'inventaire", ()=>screenInventaire(()=>screenLieu(key))]);
+  if(L.labyrinth) choices.push(["🕳 Explorer les tunnels souterrains", ()=>screenLabyrinthe(key)]);
+  if(L.witch) choices.push(["🧙 Aller voir la Vieille Potionniste", ()=>screenWitch(key)]);
+  if(L.boss) choices.push(["💀 [!] Affronter le Boss [!]", ()=>startFight(L.boss, key, true), "danger"]);
+  L.nav.forEach(([dest,label])=>{ choices.push([label, dest==="village" ? screenVillage : ()=>screenLieu(dest)]); });
+  if(key==="lac"){
+    choices.push(["✨ Murmurer un nom interdit au bord de l'eau...", ()=>screenValenkorPrompt()]);
+  }
+  choices.push(["🗺 Voir la carte", ()=>screenMap(()=>screenLieu(key))]);
+  renderStatbar();
+  setChoices(choices);
+}
+
+function screenValenkorPrompt(){
+  clearLog(); setAscii("~ ~ ~ ~ ~ ~ ~ ~ ~\n    LAC NOIR\n~ ~ ~ ~ ~ ~ ~ ~ ~");
+  line('<span class="blue">L\'eau noire semble vous inviter à prononcer... Son nom. Beaucoup craignent de le faire.</span>');
+  inputRow("Prononcez un nom...", (v)=>{
+    if(v.trim().toLowerCase()==="voldemort"){ screenValenkorCutscene(); }
+    else { line('<span class="gray">Rien ne se produit. L\'eau reste silencieuse.</span>'); setChoices([["Retour",()=>screenLieu("lac")]]); }
+  }, "Prononcer");
+}
+
+function screenValenkorCutscene(){
+  clearLog(); setAscii("");
+  const frames=[
+    "~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~\n     LAC NOIR\n~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~",
+    "~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~\n  V O L D E M O R T\n~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~",
+    "Le lac s'assombrit...\n█████████████████████",
+    "     ▄████▄\n   ▄████████▄\n  ███  ☠☠  ███\n   ██████████",
+  ];
+  line('<span class="cyan">'+frames.join('</span><br><span class="cyan">')+'</span>');
+  line('<span class="purple">╔══════════════════════════════╗<br>║       V O L D E M O R T       ║<br>║   CELUI-DONT-ON-NE-DOIT-PAS-  ║<br>║        PRONONCER-LE-NOM       ║<br>╚══════════════════════════════╝</span>');
+  line('<span class="red">"VOUS AVEZ PRONONCÉ MON NOM. VOUS ALLEZ LE REGRETTER."</span>');
+  setChoices([["Affronter Voldemort", ()=>startFight("Valenkor","lac",true), "danger"], ["Fuir", ()=>screenLieu("lac")]]);
+}
+
+/* ============================== TUNNELS DE LA CHAMBRE DES SECRETS ============================== */
+
+function screenLabyrinthe(retourKey){
+  let salle=1; render();
+  function render(){
+    clearLog(); setAscii("");
+    line('<span class="red">--------------- LES TUNNELS PROFONDS ---------------</span>');
+    if(salle===1){
+      line('<span class="gray">Le tunnel se sépare en deux. Un sifflement lointain résonne dans l\'obscurité...</span>');
+      setChoices([
+        ["Prendre le tunnel de gauche (peau de serpent au sol)", ()=>{salle=2; render();}],
+        ["Suivre les canalisations rouillées tout droit", ()=>{salle=3; render();}],
+        ["Faire demi-tour vers l'entrée de la Chambre", ()=>screenLieu(retourKey)],
+      ]);
+    } else if(salle===2){
+      line('<span class="green">🐍 Un nid de serpents inoffensifs s\'agite. Un Botruc effrayé surgit !</span>');
+      line('<span class="gray">Vous bousculez la créature et vous échappez, mais glissez sur les écailles...</span>');
+      setChoices([["Reprendre son souffle", ()=>{salle=1; render();}]]);
+    } else if(salle===3){
+      line('<span class="gray">🚃 Vous arrivez dans une salle de pierre. Un vieux chariot minier est là, face à une pente.</span>');
+      setChoices([
+        ["Monter dans le chariot et dévaler la pente", ()=>{salle=4; render();}],
+        ["Explorer les caisses de bois abandonnées", ()=>{salle=5; render();}],
+        ["Revenir au premier carrefour", ()=>{salle=1; render();}],
+      ]);
+    } else if(salle===4){
+      line('<span class="orange">WOUHOU ! Le chariot fonce dans le noir... 💥 CRASH contre une statue de gargouille !</span>');
+      line('<span class="gray">Vous êtes couvert de poussière de la tête aux pieds.</span>');
+      setChoices([["Se relever péniblement", ()=>{salle=1; render();}]]);
+    } else if(salle===5){
+      line('<span class="green2">✨ BINGO ! Une vieille sacoche de mineur : des Gallions et une fiole d\'Essence de Dictame !</span>');
+      P.money+=15; addItem("Essence de Dictame","Ressource",1);
+      line('<span class="yellow">💰 +15 Gallions et +1 Essence de Dictame ajoutées à l\'inventaire !</span>');
+      renderStatbar();
+      setChoices([["Sortir triomphalement des tunnels", ()=>screenLieu(retourKey)]]);
+    }
+    renderStatbar();
+  }
+}
+
+/* ============================== SYSTÈME DE COMBAT ============================== */
+
+function startFight(mobKey, retourLieu, isBoss){
+  const m0 = getMob(mobKey, P.level);
+  const armorBonus = INV.equip.armure ? (PVARMURE[INV.equip.armure.nom]||0) : 0;
+  fightState = {
+    mobKey, retourLieu, isBoss,
+    mHealth: m0.health, mHealthMax: m0.health,
+    mAtkFull: m0.atk, mAtk: isBoss ? Math.floor(m0.atk/2) : m0.atk, halfReached:false,
+    jHealth: P.health + armorBonus, jHealthMax: P.health + armorBonus,
+    endu: P.endurance, forcePotion:false,
+  };
+  renderFight();
+}
+
+function classAttaques(){ return ATTAQUES_CLASSE[P.class] || ATTAQUES_CLASSE["Aventurier"]; }
+
+function renderFight(){
+  const fs=fightState, m=getMob(fs.mobKey,P.level);
+  clearLog(); setAscii("⚔  D U E L  ⚔");
+  line(`<span class="red">--------------- ${esc(P.name)} VS ${esc(m.name)} ---------------</span>`);
+  line(`<span class="orange">Santé de ${esc(P.name)} : ${Math.max(0,fs.jHealth)} HP</span>`);
+  line(`<span class="yellow">Santé de ${esc(m.name)} : ${Math.max(0,fs.mHealth)} HP</span>`);
+  line(`<span class="blue">Endurance de ${esc(P.name)} : ${fs.endu}</span>`);
+  const table=attaqueTable();
+  const attaques=classAttaques();
+  renderStatbar();
+  const choices=attaques.map((nom,idx)=>{
+    const a=table[nom];
+    return [`${idx+1} - Lancer ${esc(nom)} (${a.deg} DGT, ${a.cout} Endu)`, ()=>doAttaque(idx)];
+  });
+  choices.push(["4 - Utiliser une potion", showFightPotions]);
+  setChoices(choices);
+}
+
+function doAttaque(idx){
+  const fs=fightState, attaques=classAttaques(), nom=attaques[idx], table=attaqueTable();
+  const m=getMob(fs.mobKey,P.level);
+  let msgs=[];
+  if(fs.endu < table[nom].cout){
+    const fallbackName = attaques[2];
+    const punch=table[fallbackName].deg;
+    fs.mHealth-=punch;
+    msgs.push('<span class="blue">Vous n\'avez plus assez d\'endurance pour lancer ce sort !</span>');
+    msgs.push(`<span class="brownlight">Vous ripostez avec ${esc(fallbackName)} et infligez ${punch} DGT</span>`);
+  } else {
+    let atk=table[nom].deg;
+    let crit=false;
+    if(Math.random()*100<10){ atk*=2; crit=true; }
+    if(fs.forcePotion){ atk*=2; fs.forcePotion=false; msgs.push('<span class="green2">PHILTRE DE VIGUEUR ! Dégâts doublés !</span>'); }
+    fs.mHealth-=atk;
+    if(crit) msgs.push('💥 <b>COUP CRITIQUE !</b>');
+    msgs.push(`<span class="red">${esc(P.name)} lance ${esc(nom)} : ${atk} DGT</span>`);
+    fs.endu-=table[nom].cout;
+  }
+  applyMobTurnAndContinue(msgs);
+}
+
+function applyMobTurnAndContinue(msgs){
+  const fs=fightState, m=getMob(fs.mobKey,P.level);
+  if(fs.isBoss && !fs.halfReached && fs.mHealth<=fs.mHealthMax/2){
+    fs.halfReached=true; fs.mAtk=fs.mAtkFull;
+    msgs.push(`<span class="red">[!] ${esc(m.name)} a perdu la moitié de ses PV ! Il retrouve toute sa puissance !</span>`);
+  }
+  if(fs.mHealth>0){
+    msgs.push(`<span class="orange">${esc(m.name)} lance ${esc(m.atkname)} et vous infligez ${fs.mAtk} DGT</span>`);
+    fs.jHealth-=fs.mAtk;
+  }
+  clearLog(); setAscii("⚔  D U E L  ⚔");
+  msgs.forEach(x=>line(x));
+  renderStatbar();
+  if(fs.jHealth<=0 || fs.mHealth<=0){
+    setChoices([["Continuer...", resolveFight]]);
+  } else {
+    setChoices([["Continuer le duel...", renderFight]]);
+  }
+}
+
+function showFightPotions(){
+  const fs=fightState;
+  clearLog(); setAscii("⚔  D U E L  ⚔");
+  line('<span class="green2">1 - Utiliser Essence de Dictame</span>');
+  line('<span class="green2">2 - Utiliser Potion Explosive</span>');
+  line('<span class="green2">3 - Utiliser Philtre de Vigueur</span>');
+  line('<span class="cyan">4 - Retour</span>');
+  line(`<span class="gray">Fioles possédées — Dictame: ${countItem("Essence de Dictame")}, Explosive: ${countItem("Potion Explosive")}, Vigueur: ${countItem("Philtre de Vigueur")}</span>`);
+  renderStatbar();
+  setChoices([
+    ["1 - Essence de Dictame", ()=>useFightPotion("Essence de Dictame")],
+    ["2 - Potion Explosive", ()=>useFightPotion("Potion Explosive")],
+    ["3 - Philtre de Vigueur", ()=>useFightPotion("Philtre de Vigueur")],
+    ["4 - Retour", renderFight],
+  ]);
+}
+
+function useFightPotion(nom){
+  const fs=fightState, m=getMob(fs.mobKey,P.level);
+  let msgs=[];
+  if(nom==="Essence de Dictame"){
+    if(removeItem(nom,1)){
+      const heal=Math.floor(fs.jHealthMax/2);
+      fs.jHealth+=heal;
+      msgs.push(`<span class="green2">Essence de Dictame utilisée, vous récupérez ${heal} PV !</span>`);
+    } else msgs.push('<span class="red">Vous n\'avez pas d\'Essence de Dictame !</span>');
+  } else if(nom==="Potion Explosive"){
+    if(removeItem(nom,1)){
+      const dgt=P.atk*2; fs.mHealth-=dgt;
+      msgs.push(`<span class="green2">Potion Explosive utilisée, vous infligez ${dgt} DGT !</span>`);
+    } else msgs.push('<span class="red">Vous n\'avez pas de Potion Explosive !</span>');
+  } else if(nom==="Philtre de Vigueur"){
+    if(removeItem(nom,1)){
+      fs.forcePotion=true;
+      msgs.push('<span class="green2">Philtre de Vigueur utilisé, votre prochain sort sera doublé !</span>');
+    } else msgs.push('<span class="red">Vous n\'avez aucun Philtre de Vigueur !</span>');
+  }
+  applyMobTurnAndContinue(msgs);
+}
+
+function resolveFight(){
+  const fs=fightState, m=getMob(fs.mobKey,P.level);
+  clearLog(); setAscii("");
+  if(fs.jHealth<=0 && fs.mHealth<=0){ fightWin(); }
+  else if(fs.jHealth<=0){ fightLose(); return; }
+  else { fightWin(); }
+}
+
+function fightWin(){
+  const fs=fightState, m=getMob(fs.mobKey,P.level);
+  line(`<span class="green">Bravo ! Vous avez vaincu ${esc(m.name)} !</span>`);
+  const ups=gainExp(m.exp);
+  line(`<span class="green">+${m.exp} points d'expérience</span>`);
+  ups.forEach(lvl=>line(`<span class="green2">Niveau supérieur ! Vous êtes maintenant niveau ${lvl} ! Vous êtes un ${esc(P.title)} !</span>`));
+  if(addItem(m.loot,"Ressource",1)) line(`<span class="cyan">[+] ${esc(m.loot)} ajouté à l'inventaire !</span>`);
+  renderStatbar();
+  setChoices([["Retourner là où vous étiez", ()=> fs.isBoss ? screenVillage() : screenLieu(fs.retourLieu)]]);
+}
+
+function fightLose(){
+  clearLog(); setAscii("💀");
+  line('<span class="red">Vous avez été vaincu...</span>');
+  P.level -= 1;
+  if(P.level < 0){ return screenGameOver("Votre parcours à Poudlard s'achève ici..."); }
+  line('<span class="red">Vous perdez 1 niveau.</span>');
+  line(`<span class="red">Vous êtes maintenant niveau ${P.level}.</span>`);
+  renderStatbar();
+  setChoices([["Retourner à Pré-au-Lard", screenVillage]]);
+}
+
+function screenGameOver(msg){
+  clearLog(); setAscii("W A S T E D");
+  line('<span class="red" style="font-size:22px">'+esc(msg)+'</span>');
+  setChoices([["Recommencer une nouvelle vie", ()=>{ P=null; INV=null; screenCreate(); }]]);
+}
+
+/* ============================== INVENTAIRE ============================== */
+
+function screenInventaire(returnFn){
+  clearLog(); setAscii("");
+  line('<span class="red">=== INVENTAIRE ===</span>');
+  line(`<span class="green">Niveau : ${P.level} — Vous êtes un ${esc(P.title)} !</span>`);
+  line(`<span class="yellow">💰 Gallions : ${P.money}</span>`);
+  let grid='<table class="grid">';
+  for(let r=0;r<5;r++){
+    grid+='<tr>';
+    for(let c=0;c<6;c++){
+      const i=r*6+c, s=INV.slots[i];
+      grid+=`<td>${s? esc(s.nom)+' x'+s.qte : 'vide'}</td>`;
+    }
+    grid+='</tr>';
+  }
+  grid+='</table>';
+  line(grid);
+  line('<span class="red">--- ÉQUIPEMENT ACTIF ---</span>');
+  line(`<span class="gray">Arme : ${INV.equip.arme?esc(INV.equip.arme.nom):'Aucune'}</span>`);
+  line(`<span class="gray">Cape : ${INV.equip.armure?esc(INV.equip.armure.nom):'Aucune'}</span>`);
+  renderStatbar();
+  setChoices([
+    ["Équiper un objet (choisir un numéro de slot)", ()=>{
+      inputRow("Numéro du slot (0 à 29)...", (v)=>{
+        const idx=parseInt(v,10);
+        if(!isNaN(idx) && idx>=0 && idx<30){
+          const msg=equipSlot(idx);
+          clearLog(); line('<span class="green">'+esc(msg)+'</span>');
+          renderStatbar();
+          setChoices([["Retour à l'inventaire", ()=>screenInventaire(returnFn)]]);
+        } else { screenInventaire(returnFn); }
+      }, "Équiper");
+    }],
+    ["Revenir", returnFn],
+  ]);
+}
+
+/* ============================== ÉCHOPPE ============================== */
+
+function screenShop(){
+  clearLog(); setAscii("🏪 É C H O P P E 🏪");
+  line('<span class="red">--------------- L\'Échoppe de Pré-au-Lard ---------------</span>');
+  renderStatbar();
+  setChoices([
+    ["1 - Ouvrir la zone d'achat", screenShopAchat],
+    ["2 - Ouvrir la zone de vente", screenShopVente],
+    ["3 - Ouvrir l'inventaire", ()=>screenInventaire(screenShop)],
+    ["4 - Quitter l'échoppe", screenVillage],
+    ["🗺 Voir la carte", ()=>screenMap(screenShop)],
+  ]);
+}
+function screenShopAchat(){
+  clearLog(); setAscii("");
+  line('<span class="red">---------- Zone d\'achat ----------</span>');
+  const noms=Object.keys(PRIX_ACHAT_SHOP).sort();
+  noms.forEach(n=>line(`${esc(n)} : ${PRIX_ACHAT_SHOP[n]} Gallions`));
+  line(`<span class="yellow">Gallions disponibles : ${P.money}</span>`);
+  renderStatbar();
+  const choices=noms.map(n=>[`Acheter ${esc(n)} (${PRIX_ACHAT_SHOP[n]}G)`, ()=>askQty("acheter", n, PRIX_ACHAT_SHOP[n], true)]);
+  choices.push(["Quitter la zone d'achat", screenShop]);
+  setChoices(choices);
+}
+function screenShopVente(){
+  clearLog(); setAscii("");
+  line('<span class="red">---------- Zone de vente ----------</span>');
+  const noms=Object.keys(PRIX_VENTE_SHOP).sort();
+  noms.forEach(n=>line(`${esc(n)} : ${PRIX_VENTE_SHOP[n]} Gallions (vous en avez ${countItem(n)})`));
+  line(`<span class="yellow">Gallions disponibles : ${P.money}</span>`);
+  renderStatbar();
+  const choices=noms.map(n=>[`Vendre ${esc(n)} (${PRIX_VENTE_SHOP[n]}G)`, ()=>askQty("vendre", n, PRIX_VENTE_SHOP[n], false)]);
+  choices.push(["Quitter la zone de vente", screenShop]);
+  setChoices(choices);
+}
+function askQty(mode, nom, prix, isBuy){
+  clearLog();
+  line(`<span class="blue">Quelle quantité de ${esc(nom)} voulez-vous ${mode} ?</span>`);
+  inputRow("Quantité...", (v)=>{
+    const q=parseInt(v,10);
+    if(isNaN(q) || q<=0){ line('<span class="darkgray">[!] Quantité invalide.</span>'); setChoices([["Retour", isBuy?screenShopAchat:screenShopVente]]); return; }
+    if(isBuy){
+      const cout=prix*q;
+      if(cout>P.money){ line(`<span class="darkgray">[!] Pas assez de Gallions : ${cout} nécessaires, ${P.money} disponibles.</span>`); }
+      else if(!addItem(nom,"Ressource",q)){ line('<span class="darkgray">[!] Inventaire plein.</span>'); }
+      else { P.money-=cout; line(`<span class="pink">-> Achat réussi : ${q} x ${esc(nom)} pour ${cout} Gallions.</span>`); }
+      renderStatbar(); setChoices([["Continuer", screenShopAchat]]);
+    } else {
+      if(!removeItem(nom,q)){ line('<span class="darkgray">[!] Vous ne possédez pas cette quantité.</span>'); }
+      else { const gain=prix*q; P.money+=gain; line(`<span class="pink">-> Vente réussie : ${q} x ${esc(nom)} pour ${gain} Gallions.</span>`); }
+      renderStatbar(); setChoices([["Continuer", screenShopVente]]);
+    }
+  }, "Valider");
+}
+
+/* ============================== ATELIER ENCHANTÉ (forge) ============================== */
+
+function screenForge(){
+  clearLog(); setAscii("🔨 A T E L I E R 🔨");
+  line('<span class="red">--------------- L\'Atelier Enchanté ---------------</span>');
+  renderStatbar();
+  setChoices([
+    ["1 - Fabriquer / Enchanter un objet", screenCraft],
+    ["2 - Ouvrir l'inventaire", ()=>screenInventaire(screenForge)],
+    ["3 - Quitter l'atelier", screenVillage],
+    ["🗺 Voir la carte", ()=>screenMap(screenForge)],
+  ]);
+}
+function screenCraft(){
+  clearLog(); setAscii("");
+  line('<span class="orange">Voici les recettes disponibles dans l\'atelier :</span>');
+  RECETTES.forEach((r,i)=>{
+    const ing=r.ing.map(([n,q])=>`${esc(n)} x${q} (vous: ${countItem(n)})`).join(", ");
+    line(`<b>[${i+1}] ${esc(r.nom)}</b> (${esc(r.cat)}) — ${ing}`);
+  });
+  renderStatbar();
+  const choices=RECETTES.map((r,i)=>[`Fabriquer : ${esc(r.nom)}`, ()=>doCraft(i)]);
+  choices.push(["Retour", screenForge]);
+  setChoices(choices);
+}
+function doCraft(i){
+  const r=RECETTES[i];
+  clearLog();
+  let peut=true;
+  for(const [n,q] of r.ing){ if(countItem(n)<q){ peut=false; line(`<span class="red">❌ Il vous manque des composants ! ${countItem(n)}/${q} ${esc(n)}.</span>`); break; } }
+  if(peut){
+    r.ing.forEach(([n,q])=>removeItem(n,q));
+    addItem(r.nom, r.cat==="Armure"?"Armure":"Arme", 1);
+    line(`<span class="green">🎉 Succès ! Vous avez enchanté : ${esc(r.nom)} !</span>`);
+  }
+  renderStatbar();
+  setChoices([["Retour aux recettes", screenCraft]]);
+}
+
+/* ============================== LES TROIS BALAIS (auberge) ============================== */
+
+function screenAuberge(){
+  clearLog(); setAscii("🍺 T R O I S   B A L A I S 🍺");
+  line('<span class="red">--------------- Les Trois Balais ---------------</span>');
+  renderStatbar();
+  setChoices([
+    ["1 - Jouer à Pile ou Face (Gallion enchanté)", screenPileFace],
+    ["2 - Boire une gorgée de la Fiole Mystérieuse", screenPotionMagique],
+    ["3 - Ouvrir l'inventaire", ()=>screenInventaire(screenAuberge)],
+    ["4 - Retourner à Pré-au-Lard", screenVillage],
+    ["🗺 Voir la carte", ()=>screenMap(screenAuberge)],
+  ]);
+}
+function screenPileFace(){
+  clearLog(); setAscii("🪙");
+  line('<span class="red">=== PILE OU FACE ===</span>');
+  line(`<span class="yellow">Vous avez ${P.money} Gallions.</span>`);
+  if(P.money<=0){ line('<span class="red">Vous n\'avez plus de Gallions pour jouer !</span>'); setChoices([["Retour aux Trois Balais", screenAuberge]]); return; }
+  inputRow("Mise (0 pour quitter)...", (v)=>{
+    const mise=parseInt(v,10);
+    if(isNaN(mise)){ line('<span class="red">Nombre invalide.</span>'); setChoices([["Retour", screenPileFace]]); return; }
+    if(mise===0){ screenAuberge(); return; }
+    if(mise<0 || mise>P.money){ line('<span class="red">Mise invalide.</span>'); setChoices([["Retour", screenPileFace]]); return; }
+    inputRow("Pile ou face ?", (choix)=>{
+      choix=choix.trim().toLowerCase();
+      if(choix!=="pile" && choix!=="face"){ line('<span class="red">Tapez exactement "pile" ou "face".</span>'); setChoices([["Retour", screenPileFace]]); return; }
+      const resultat = Math.random()<0.5 ? "pile" : "face";
+      clearLog();
+      line(`<span class="blue">Le Gallion tourne dans les airs... et tombe sur : ${resultat} !</span>`);
+      if(choix===resultat){ P.money+=mise; line(`<span class="green">Félicitations ! Vous gagnez ${mise} Gallions !</span>`); }
+      else { P.money-=mise; line(`<span class="red">Dommage... Vous perdez ${mise} Gallions.</span>`); }
+      line(`<span class="yellow">Il vous reste ${P.money} Gallions.</span>`);
+      renderStatbar();
+      setChoices([["Rejouer", screenPileFace],["Retour aux Trois Balais", screenAuberge]]);
+    }, "Lancer");
+  }, "Miser");
+}
+function screenPotionMagique(){
+  clearLog(); setAscii("🧪");
+  line('<span class="red">--------------- LA FIOLE MYSTÉRIEUSE ---------------</span>');
+  line('<span class="gray">Un client louche vous propose une gorgée pour 5 Gallions. Personne ne sait vraiment ce qu\'elle contient...</span>');
+  line(`<span class="yellow">Vous avez ${P.money} Gallions.</span>`);
+  setChoices([
+    ["Oui, je tente une gorgée", ()=>{
+      if(P.money<5){ clearLog(); line('<span class="yellow">Vous n\'avez pas assez de Gallions (5 requis) !</span>'); setChoices([["Retour",screenAuberge]]); return; }
+      P.money-=5; renderStatbar(); playPotionSequence();
+    }],
+    ["Non, j'ai changé d'avis", screenAuberge],
+  ]);
+}
+function playPotionSequence(){
+  const seq=[
+    "Vous buvez une gorgée de la fiole...",
+    "Vous commencez à ressentir ses effets...",
+    "Vous vous rendez compte de quelque chose...",
+    "Cette fiole n'était pas ce que vous pensiez...",
+  ];
+  let i=0;
+  function step(){
+    clearLog(); setAscii("🧪");
+    line('<span class="purple">'+esc(seq[i])+'</span>');
+    i++;
+    if(i<seq.length){ setChoices([["Continuer", step]]); }
+    else {
+      P.health -= 1;
+      if(P.health<=0){
+        clearLog(); setAscii("💀");
+        line('<span class="red">Cette gorgée vous aura été fatale...</span>');
+        line('<span class="red">Vous n\'avez pas pu y survivre.</span>');
+        setChoices([["..." , ()=>screenGameOver("W A S T E D")]]);
+      } else {
+        line(`<span class="purple">Vous venez de perdre un PV de façon définitive. Il vous reste ${P.health} PV max.</span>`);
+        renderStatbar();
+        setChoices([["Retour aux Trois Balais", screenAuberge]]);
+      }
+    }
+  }
+  step();
+}
+
+/* ============================== VIEILLE POTIONNISTE ============================== */
+
+function screenWitch(retourKey){
+  clearLog(); setAscii("🧙♀");
+  line('<span class="pink">Hihihi... Un petit sorcier égaré dans mes brumes, hihihi !</span>');
+  line('<span class="purple">Approche donc de mon chaudron, j\'ai de drôles de fioles dans ma besace.</span>');
+  renderStatbar();
+  setChoices([
+    ["1 - Achat de fioles", ()=>screenWitchBuy(retourKey)],
+    ["2 - Ouvrir l'inventaire", ()=>screenInventaire(()=>screenWitch(retourKey))],
+    ["3 - Quitter la cabane de la Potionniste", ()=>screenLieu(retourKey)],
+    ["🗺 Voir la carte", ()=>screenMap(()=>screenWitch(retourKey))],
+  ]);
+}
+function screenWitchBuy(retourKey){
+  clearLog(); setAscii("");
+  line('<span class="red">--------------- ÉTAGÈRE DES FIOLES ---------------</span>');
+  Object.entries(PRIX_POTIONS).forEach(([n,p])=>line(`<span class="yellow">${esc(n)} — ${p} Gallions l'unité</span>`));
+  line(`<span class="yellow">Gallions disponibles : ${P.money}</span>`);
+  renderStatbar();
+  const choices=Object.entries(PRIX_POTIONS).map(([n,p])=>[`Acheter ${esc(n)} (${p}G)`, ()=>{
+    inputRow(`Quantité de ${n}...`, (v)=>{
+      const q=parseInt(v,10);
+      if(isNaN(q)||q<=0){ line('<span class="red">❌ Quantité invalide.</span>'); setChoices([["Retour", ()=>screenWitchBuy(retourKey)]]); return; }
+      const total=p*q;
+      if(P.money<total){ line(`<span class="red">❌ Ta bourse est trop légère ! Il faut ${total} Gallions.</span>`); }
+      else if(!addItem(n,"Ressource",q)){ line('<span class="red">❌ Impossible de placer les fioles dans l\'inventaire.</span>'); }
+      else { P.money-=total; line(`<span class="yellow">✨ Achat réussi : ${q} x ${esc(n)} pour ${total} Gallions !</span>`); }
+      renderStatbar();
+      setChoices([["Continuer", ()=>screenWitchBuy(retourKey)]]);
+    }, "Acheter");
+  }]);
+  choices.push(["Retour", ()=>screenWitch(retourKey)]);
+  setChoices(choices);
+}
+
+/* ============================== LIBRAIRIE ============================== */
+
+const VOL2 = `Capes (bonus de PV en combat) : Peau de Dragon (+50pv), Acier Gobelin (+100pv),
+Acier Gobelin Enchanté (+200pv), Invisibilité Tissée (+350pv).
+Armes par classe (dégâts bonus) — Moldu : lance-pierre (1), fronde renforcée (5), fronde enchantée (10).
+Mage : baguette d'entraînement (1), bois de saule (5), if et plume de phénix (10).
+Cracmol : bâton noueux (1), bâton ferré (5), bâton ferré renforcé (10).
+Mage Noir : baguette fêlée (1), ébène (5), if noir (10).`;
+const VOL3 = `L'Échoppe permet d'acheter et vendre des matériaux magiques. L'Atelier Enchanté permet de fabriquer
+capes et baguettes à partir des composants récupérés sur les créatures ou achetés à l'Échoppe.`;
+const VOL4 = `Maisons : Gryffondor (bravoure, PV et endurance équilibrés), Serdaigle (érudition extrême,
+mais quasi incapables de survivre à un vrai combat physique), Serpentard (ambition et puissance brute),
+Poufsouffle (loyauté, discret mais peu combatif).
+Classes : Mage (sortilèges, +25 endurance), Cracmol (bâton et huile de coude, +10pv/+5endu/+3def/+5dégâts),
+Moldu (fronde et ingéniosité, +20pv/+5endu/+2dégâts), Mage Noir (magie interdite, +20endu/+8dégâts, très fragile).`;
+const VOL5 = `Dans le Marais aux Brumes vit une vieille Potionniste solitaire. Malgré son air inquiétant,
+elle vend des fioles précieuses : dégâts instantanés, vigueur et soin.`;
+const VOL6 = `LA LÉGENDE DE CELUI-DONT-ON-NE-DOIT-PAS-PRONONCER-LE-NOM
+
+Il fut jadis un élève brillant de Poudlard, doué comme peu l'ont été avant lui. Mais la soif de
+puissance et la peur de la mort le rongèrent peu à peu, jusqu'à le faire basculer dans les ténèbres
+les plus profondes.
+
+Il rassembla des fidèles, sema la terreur pendant des décennies, et devint si redouté que son propre
+nom fut proscrit : on ne le prononce plus qu'à voix basse, ou pas du tout. "Tu-Sais-Qui." "Celui-Dont-
+On-Ne-Doit-Pas-Prononcer-Le-Nom."
+
+On raconte qu'il hante encore les eaux du Lac Noir, et que quiconque ose murmurer son véritable nom
+à la surface de l'eau l'invoque instantanément — furieux d'être dérangé dans son exil.`;
+const VOL1_CHAPS = {
+  "Pré-au-Lard":"Le village sorcier : ici se trouvent la librairie, l'atelier et l'échoppe, pour acheter, vendre et enchanter.",
+  "La Forêt Interdite":"Le Loup-Garou, dangereux les nuits de pleine lune, et le Lutin de Cornouailles, chaotique mais redoutable en nombre.",
+  "Le Col des Géants":"Le Troll des Montagnes, lent mais dévastateur, et l'Elfe de Maison Sauvage, imprévisible loin de tout maître.",
+  "La Chambre des Secrets":"Le Jeune Basilic, dont le regard reste dangereux même petit, et le Doxy, minuscule mais very venimeux.",
+  "Le Lac Noir":"La Sirène des Abysses, envoûtante et puissante, et le Strangulot, qui attrape les chevilles des imprudents.",
+  "Le Marais aux Brumes":"Le Kneazle Enragé, féroce malgré son allure de chat, et le Détraqueur, presque impossible à blesser durablement.",
+  "Le Terrain de Quidditch":"Le Cognard Ensorcelé, qui frappe sans relâche, et le Botruc Agressif, protecteur féroce des bois voisins.",
+  "Le Château de Poudlard":"L'Armure Ensorcelée, la Gargouille de Poudlard, et l'effrayant Tableau de Salazar Serpentard, dont le sortilège est redoutable.",
+};
+
+function screenBiblio(){
+  clearLog(); setAscii("📚");
+  line('<span class="red">--------------- Librairie de Pré-au-Lard ---------------</span>');
+  renderStatbar();
+  setChoices([
+    ["Tome 1 : Les lieux et les créatures", screenVol1],
+    ["Tome 2 : Les capes et les baguettes", ()=>screenVolume("Tome 2 : Les capes et les baguettes", VOL2)],
+    ["Tome 3 : L'atelier et l'échoppe", ()=>screenVolume("Tome 3 : L'atelier et l'échoppe", VOL3)],
+    ["Tome 4 : Les classes et les maisons", ()=>screenVolume("Tome 4 : Les classes et les maisons", VOL4)],
+    ["Tome 5 : La Potionniste", ()=>screenVolume("Tome 5 : La Potionniste", VOL5)],
+    ["Tome 6 : Celui-Dont-On-Ne-Doit-Pas-Prononcer-Le-Nom", ()=>screenVolume("Tome 6 : La légende interdite", VOL6)],
+    ["Retour à Pré-au-Lard", screenVillage],
+    ["🗺 Voir la carte", ()=>screenMap(screenBiblio)],
+  ]);
+}
+function screenVolume(titre, texte){
+  clearLog(); setAscii("");
+  line(`<span class="red">--------------- ${esc(titre)} ---------------</span>`);
+  line('<span class="gray">'+esc(texte).replace(/\n/g,'<br>')+'</span>');
+  setChoices([["Revenir à la librairie", screenBiblio]]);
+}
+function screenVol1(){
+  clearLog(); setAscii("");
+  line('<span class="red">--------------- Tome 1 : les chapitres ---------------</span>');
+  renderStatbar();
+  const choices=Object.entries(VOL1_CHAPS).map(([titre,texte])=>[titre, ()=>{
+    clearLog(); line(`<span class="red">--------------- ${esc(titre)} ---------------</span>`);
+    line('<span class="gray">'+esc(texte)+'</span>');
+    setChoices([["Retour aux chapitres", screenVol1]]);
+  }]);
+  choices.push(["Retour à la librairie", screenBiblio]);
+  setChoices(choices);
+}
+
+/* ============================== LANCEMENT ============================== */
+
+screenCreate();
+</script>
+</body>
+</html>
